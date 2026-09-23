@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Multisport Helper</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%231f7a36'/%3E%3Cpath d='M9 17l5 5 9-11' stroke='white' stroke-width='3.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v={{ version }}-{{ boot }}">
+</head>
+<body>
+<div id="offline" class="offline-banner" hidden>Lost contact with the Multisport Helper. Retrying…</div>
+
+<header class="topbar" id="topbar">
+  <div class="brand">
+    <strong>Multisport Helper</strong>
+    <span id="hdr-race">No race loaded</span>
+  </div>
+
+  <form class="race-box" id="race-form" autocomplete="off">
+    <input id="race-id" inputmode="numeric" placeholder="Race ID" aria-label="Webscorer race ID">
+    <button class="btn" type="submit" id="btn-load">Load</button>
+  </form>
+
+  <label class="big-toggle live-toggle" id="live-toggle" title="Fetch results and taps from Webscorer every few seconds">
+    <span class="switch"><input type="checkbox" id="live-switch" aria-label="Live update"><span class="track"></span></span>
+    <span class="label" id="live-label">LIVE UPDATE OFF</span>
+    <span class="counts" id="live-counts"></span>
+  </label>
+
+  <div class="statuses">
+    <div class="status" id="st-webscorer" title="Webscorer"><span class="dot"></span><span>Webscorer <b>–</b></span></div>
+  </div>
+  <div class="spacer"></div>
+  <button class="btn small" type="button" id="btn-refresh" style="background:var(--bar-2);color:var(--bar-text);border-color:var(--bar-line)">Refresh now</button>
+</header>
+
+<nav class="tabs" role="tablist" id="tabs">
+  <button class="tab" role="tab" data-tab="problems" aria-selected="true">Problems <span id="tab-count"></span></button>
+  <button class="tab" role="tab" data-tab="all" aria-selected="false">All finishers</button>
+  <button class="tab" role="tab" data-tab="settings" aria-selected="false">Settings</button>
+</nav>
+
+<main>
+  <!-- ======================================================== PROBLEMS -->
+  <section id="tab-problems" class="tab-panel" role="tabpanel">
+    <div id="setup-notice" class="notice warn" hidden>Add the Webscorer API ID on the <a href="#settings" data-goto="settings">Settings</a> tab, then enter the race ID at the top and choose <b>Load</b>.</div>
+    <div class="card summary" id="summary" hidden></div>
+    <div id="dist-notes" class="stack" style="margin-top:12px"></div>
+    <div class="tools">
+      <div class="seg" role="group" aria-label="Show">
+        <button type="button" data-level="all" aria-pressed="true">All problems</button>
+        <button type="button" data-level="error" aria-pressed="false">Can't be right</button>
+        <button type="button" data-level="check" aria-pressed="false">Worth a look</button>
+      </div>
+      <select id="p-distance" aria-label="Distance"><option value="">All distances</option></select>
+      <input type="search" class="search" id="p-search" placeholder="Search bib or name" aria-label="Search bib or name">
+      <label class="check"><input type="checkbox" id="show-done"> Show ones marked done <span class="muted" id="done-count"></span></label>
+    </div>
+    <div class="cards" id="cards"></div>
+    <div class="empty-state" id="p-empty" hidden></div>
+  </section>
+
+  <!-- ======================================================== ALL FINISHERS -->
+  <section id="tab-all" class="tab-panel" role="tabpanel" hidden>
+    <div class="tools">
+      <select id="a-distance" aria-label="Distance"><option value="">All distances</option></select>
+      <input type="search" class="search" id="a-search" placeholder="Search bib or name" aria-label="Search bib or name">
+      <label class="check"><input type="checkbox" id="a-problems"> Problems only</label>
+      <label class="check"><input type="checkbox" id="a-dns"> Include DNS / not started</label>
+    </div>
+    <div id="all-wrap"></div>
+    <div class="empty-state" id="a-empty" hidden></div>
+  </section>
+
+  <!-- ======================================================== SETTINGS -->
+  <section id="tab-settings" class="tab-panel" role="tabpanel" hidden>
+    <form id="settings-form" autocomplete="off">
+      <div class="config-grid">
+        <fieldset class="card">
+          <legend>Webscorer</legend>
+          <div class="fields">
+            <label class="field"><span>API ID</span><input name="webscorer_api_id" inputmode="numeric">
+              <small>The number at the end of your Webscorer organiser page address.</small></label>
+            <label class="field"><span>API private key (apipriv)</span><input name="webscorer_token" type="password" placeholder="Leave blank to keep the saved key" autocomplete="new-password">
+              <div class="secret-state" id="token-state"></div></label>
+            <label class="field"><span>Refresh every (seconds)</span><input name="refresh_seconds" type="number" min="5" max="600" step="1"></label>
+            <div class="row"><button class="btn" type="button" id="btn-test">Test with the race ID at the top</button></div>
+          </div>
+        </fieldset>
+        <fieldset class="card">
+          <legend>Checks</legend>
+          <div class="fields">
+            <div class="two">
+              <label class="field"><span>Transition over … × usual</span><input name="transition_multiple" type="number" step="0.5" min="1"></label>
+              <label class="field"><span>… and over usual by (min)</span><input name="transition_extra_min" type="number" step="0.5" min="0.5"></label>
+            </div>
+            <div class="two">
+              <label class="field"><span>Swim / bike / run under (% of usual)</span><input name="discipline_min_pct" type="number" step="5" min="5" max="95"></label>
+              <label class="field"><span>Transition under (% of usual)</span><input name="transition_min_pct" type="number" step="5" min="5" max="95"></label>
+            </div>
+            <p class="hint" style="margin:0">A transition longer than the swim, bike or run next to it is always flagged. "Usual" is the middle time for that leg in the same distance.</p>
+          </div>
+        </fieldset>
+        <fieldset class="card">
+          <legend>Page password</legend>
+          <div class="fields">
+            <p class="hint" style="margin:0" id="pw-state"></p>
+            <div class="row"><input class="grow" type="password" id="pw-new" placeholder="New password (blank removes it)" autocomplete="new-password" aria-label="New password">
+              <button class="btn" type="button" id="btn-pw">Save password</button></div>
+          </div>
+        </fieldset>
+      </div>
+      <div class="save-bar">
+        <button class="btn primary" type="submit">Save settings</button>
+        <span class="dirty" id="settings-dirty" hidden>Unsaved changes</span>
+        <span class="spacer"></span>
+        <span class="muted small">Multisport Helper {{ version }} · nothing about the race is stored</span>
+      </div>
+    </form>
+  </section>
+</main>
+
+<dialog id="dlg-confirm">
+  <form method="dialog">
+    <div class="dlg-head"><h2 id="confirm-title"></h2></div>
+    <div class="dlg-body" id="confirm-body"></div>
+    <div class="dlg-actions">
+      <button class="btn" type="button" id="confirm-cancel" data-close>Cancel</button>
+      <button class="btn primary" value="ok" id="confirm-ok">OK</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<script src="{{ url_for('static', filename='app.js') }}?v={{ version }}-{{ boot }}"></script>
+</body>
+</html>

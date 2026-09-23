@@ -1,0 +1,19 @@
+# Template used by install.sh (the @...@ values are filled in there).
+[Unit]
+Description=Multisport Helper (missed-tap checker for duathlons and triathlons)
+After=network.target
+
+[Service]
+Type=simple
+User=@USER@
+Group=@GROUP@
+WorkingDirectory=@APP_DIR@
+Environment=PYTHONUNBUFFERED=1
+Environment=MULTISPORT_PORT=@PORT@
+ExecStart=@APP_DIR@/.venv/bin/python -m multisport
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
