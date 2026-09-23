@@ -327,18 +327,22 @@
   function fixesHtml(s) {
     if (!s) return `<p class="hint" style="margin:0">No better reading of the taps was found. Check this racer by hand (photos, marshal notes, lap counter).</p>`;
     const rows = s.ends.filter((e) => e.kind !== "same" && e.kind !== "later");
+    // race clock is what Webscorer's tap list shows; time of day and the leg it ends are underneath
+    const when = (clock, tod, lapTime) => clock
+      ? `${esc(clock)}<div class="sub">${esc(tod)} time of day${lapTime ? ` · leg ${esc(lapTime)}` : ""}</div>`
+      : `${esc(tod)}${lapTime ? `<div class="sub">leg ${esc(lapTime)}</div>` : ""}`;
     const table = `<table class="fixes">
-      <tr><th>Tap</th><th>Now</th><th>Set it to</th><th></th></tr>
+      <tr><th>Tap</th><th>Now (race clock)</th><th>Set it to (race clock)</th><th></th></tr>
       ${rows.map((e) => `<tr class="${e.kind}">
         <td>${esc(e.end)}</td>
-        <td>${esc(e.now || "none")}</td>
-        <td class="new">${esc(e.new)}</td>
+        <td>${e.now ? when(e.now_clock, e.now, e.now_lap) : "none"}</td>
+        <td class="new">${when(e.new_clock, e.new, e.new_lap)}</td>
         <td class="note">${esc(e.note)}${e.chips?.length ? `<div class="chips">Unassigned chip reads nearby: ${e.chips.map((c) =>
           `${esc(c.tod)} (chip ${esc(c.chip)}, #${esc(c.seq)})`).join(", ")}</div>` : ""}</td>
       </tr>`).join("")}
     </table>`;
     const removes = s.remove.length ? `<ul class="removes">${s.remove.map((r) =>
-      `<li>Delete the tap at <b>${esc(r.tod || r.elapsed)}</b>${r.source ? ` (${esc(r.source)})` : ""}, now used as the ${esc(r.was)}: ${esc(r.why)}.</li>`).join("")}</ul>` : "";
+      `<li>Delete the tap at <b>${esc(r.clock || r.tod || r.elapsed)}</b>${r.clock ? ` race clock (${esc(r.tod)} time of day)` : ""}${r.source ? `, ${esc(r.source)}` : ""}, now used as the ${esc(r.was)}: ${esc(r.why)}.</li>`).join("")}</ul>` : "";
     const alt = s.alternative ? `<div class="alt"><b>Also possible:</b> ${s.alternative.ends.map((e) =>
       `${esc(e.end)} ${esc(e.new)}`).join(", ")}. Legs would be ${s.alternative.legs.map((l) => `${esc(l.name)} ${esc(l.new || "–")}`).join(", ")}.</div>` : "";
     return table + removes + alt;
@@ -347,8 +351,8 @@
   function tapsHtml(p) {
     if (!p.timeline.length) return "";
     return `<details class="taps"><summary>Raw taps (${p.timeline.length})</summary>
-      <table class="taps"><tr><th>#</th><th>Webscorer</th><th>Time of day</th><th>Race time</th><th>Reader</th><th>Used as</th></tr>
-      ${p.timeline.map((t) => `<tr><td>${esc(t.seq)}</td><td>${esc(t.label)}</td><td>${esc(t.tod)}</td><td>${esc(t.elapsed)}</td>
+      <table class="taps"><tr><th>#</th><th>Webscorer</th><th>Race clock</th><th>Time of day</th><th>Since start</th><th>Reader</th><th>Used as</th></tr>
+      ${p.timeline.map((t) => `<tr><td>${esc(t.seq)}</td><td>${esc(t.label)}</td><td>${esc(t.clock)}</td><td>${esc(t.tod)}</td><td>${esc(t.elapsed)}</td>
         <td class="${t.odd_reader ? "odd" : ""}" title="${t.odd_reader ? "Not the reader that usually records this" : ""}">${esc(t.reader)}</td><td>${esc(t.used)}</td></tr>`).join("")}
       </table></details>`;
   }

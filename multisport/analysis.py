@@ -592,6 +592,7 @@ def _check_racer(rec, dname, legs, field, th, taps, loose, tod_offset, expected_
 
     # candidate times: the current splits plus every lap tap for this bib
     zero = _zero(taps, cum) if taps else 0.0
+    rec["clock_ok"] = bool(taps)  # race clock times are only known when Webscorer sent the raw taps
     cands = []
     for i in known:
         cands.append({"t": cum[i], "current": i, "tap": None, "manual": False})
@@ -762,19 +763,33 @@ def _describe(legs, cum, new_cum, assign, cands, last, zero, tod_offset, rec, lo
         v = _tod(t, zero, tod_offset, rec)
         return fmt_tod(v) if v is not None else ""
 
+    def clock(t):
+        """Webscorer's race clock ('Time tap') for a leg end, e.g. 1:19:30.0."""
+        return fmt(t + zero) if t is not None and rec.get("clock_ok") else ""
+
+    def lap(times, i):
+        """Duration of the leg ending at leg end i."""
+        if i >= len(times) or times[i] is None:
+            return ""
+        prev = 0.0 if i == 0 else times[i - 1]
+        return fmt(times[i] - prev) if prev is not None else ""
+
     ends = []
     for i in range(len(legs)):
         now_t = cum[i] if i < len(cum) else None
         new_t = new_cum[i] if i < last else None
         row = {"end": _end_label(legs, labels, i), "now": tod(now_t) if now_t is not None else "",
                "now_elapsed": fmt(now_t) if now_t is not None else "",
-               "new": "", "new_elapsed": "", "kind": "same", "note": "", "chips": []}
+               "now_clock": clock(now_t), "now_lap": lap(cum, i),
+               "new": "", "new_elapsed": "", "new_clock": "", "new_lap": "",
+               "kind": "same", "note": "", "chips": []}
         if i >= last:
             row["kind"] = "later"
             row["note"] = "not reached yet"
             ends.append(row)
             continue
         row["new"], row["new_elapsed"] = tod(new_t), fmt(new_t)
+        row["new_clock"], row["new_lap"] = clock(new_t), lap(new_cum[:last], i)
         cand = cands[assign[i]] if assign[i] is not None else None
         if _same(new_t, now_t):
             row["kind"], row["note"] = "same", "no change"
@@ -783,6 +798,8 @@ def _describe(legs, cum, new_cum, assign, cands, last, zero, tod_offset, rec, lo
             row["kind"] = "estimate"
             row["new"] = "≈ " + (fmt_tod(est, 0) if est is not None else fmt(new_t, 0))
             row["new_elapsed"] = "≈ " + fmt(new_t, 0)
+            row["new_clock"] = ("≈ " + row["new_clock"]) if row["new_clock"] else ""
+            row["new_lap"] = ("≈ " + row["new_lap"]) if row["new_lap"] else ""
             row["note"] = "missed: estimate from the usual leg times"
             row["chips"] = _nearby_chips(loose, est, readers[i])
         else:
@@ -802,7 +819,7 @@ def _describe(legs, cum, new_cum, assign, cands, last, zero, tod_offset, rec, lo
         tap = next((x["tap"] for x in cands if x["tap"] is not None and abs(x["t"] - c) <= MATCH), None)
         why = ("a second read of the same crossing" if any(abs(c - k) <= DUPLICATE for k in kept)
                else "doesn't fit this racer's other times")
-        remove.append({"tod": tod(c), "elapsed": fmt(c), "was": _end_label(legs, labels, i),
+        remove.append({"tod": tod(c), "elapsed": fmt(c), "clock": clock(c), "was": _end_label(legs, labels, i),
                        "source": _tap_source(tap) if tap else "", "why": why,
                        "genuine": bool(tap and not tap["manual"] and readers[i] and tap["reader"] == readers[i]
                                        and why != "a second read of the same crossing")})
@@ -837,13 +854,14 @@ def _timeline(taps, cum, zero, tod_offset, rec, legs, readers, labels):
     out = []
     for tap in taps:
         if tap["label"].lower() == "start":
-            out.append({"seq": tap["seq"], "label": "Start", "tod": fmt_tod(tap["tod"]), "elapsed": "0:00.0",
+            out.append({"seq": tap["seq"], "label": "Start", "tod": fmt_tod(tap["tod"]), "clock": fmt(tap["t"]), "elapsed": "0:00.0",
                         "reader": tap["reader"] or "hand", "used": "Start", "odd_reader": False})
             continue
         t = tap["t"] - zero
         used = next((i for i, c in enumerate(cum) if c is not None and abs(c - t) <= MATCH), None)
         odd = used is not None and readers[used] and tap["reader"] and tap["reader"] != readers[used]
-        out.append({"seq": tap["seq"], "label": tap["label"], "tod": fmt_tod(tap["tod"]), "elapsed": fmt(t),
+        out.append({"seq": tap["seq"], "label": tap["label"], "tod": fmt_tod(tap["tod"]), "clock": fmt(tap["t"]),
+                    "elapsed": fmt(t),
                     "reader": tap["reader"] or "hand",
                     "used": _end_name(legs, used) if used is not None else "not used",
                     "odd_reader": bool(odd)})

@@ -73,6 +73,13 @@ class MissedT2Exit(unittest.TestCase):
         est = A.parse_time(e["T2 exit"]["new_elapsed"].replace("≈ ", ""))
         self.assertLess(abs(est - self.true_cum[3]), 60)  # within a minute of the real crossing
         self.assertEqual(e["Bike end"]["kind"], "same")
+        # race clock (Webscorer's "Time tap") = wave start on the race clock + time since start
+        clock = A.parse_time(e["T2 exit"]["new_clock"].replace("≈ ", ""))
+        self.assertAlmostEqual(clock, H.WAVE + est, delta=1)  # the estimate is shown to whole seconds
+        self.assertEqual(e["Bike end"]["now_clock"], A.fmt(H.WAVE + self.true_cum[2]))
+        lap = A.parse_time(e["T2 exit"]["new_lap"].replace("≈ ", ""))
+        self.assertLess(abs(lap - 57), 60)  # the T2 duration the new tap gives
+        self.assertTrue(p["suggestion"]["remove"][0]["clock"])
         # the early finish-area read is listed for deletion
         self.assertEqual(len(p["suggestion"]["remove"]), 1)
         self.assertIn("second read", p["suggestion"]["remove"][0]["why"])
